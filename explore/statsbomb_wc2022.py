@@ -1,13 +1,20 @@
-"""StatsBomb 무료 데이터 구조 탐색 - 2022 FIFA 월드컵 결승전."""
+"""StatsBomb 무료 데이터 구조 탐색 — 2022 FIFA 월드컵 결승전."""
+from __future__ import annotations
+
+import sys
 import warnings
+from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 from statsbombpy import sb
 
-# 2022 FIFA 월드컵 (competition_id=43, season_id=106)
-COMPETITION_ID = 43
-SEASON_ID = 106
+from football.config import COMPETITION_ID, SEASON_ID
 
 
 def section(title: str) -> None:
@@ -150,7 +157,6 @@ def print_sample_events(events, n: int = 8) -> None:
     interesting = events[events["type"].isin(
         ["Goal", "Shot", "Substitution", "Foul Committed", "Pass"]
     )]
-    # Shot 중 Goal은 위에서 봤으니 Saved/Blocked 등 위주로
     sample = interesting.head(n)
     print(f"  (이벤트 DataFrame 앞쪽 {n}줄 샘플 — 컬럼 구조 확인용)\n")
     cols = ["period", "minute", "second", "team", "player", "type"]
@@ -158,44 +164,44 @@ def print_sample_events(events, n: int = 8) -> None:
     print(sample[cols + extra].to_string(index=False))
 
 
-# ── 1. 대회 목록 (월드컵만) ──────────────────────────────────
-section("1. 무료 오픈 데이터 — FIFA 월드컵 시즌")
-comps = sb.competitions()
-wc = comps[
-    (comps["competition_name"] == "FIFA World Cup")
-    & (comps["competition_id"] == COMPETITION_ID)
-]
-print(wc[["competition_id", "season_id", "competition_name", "season_name"]].to_string(index=False))
+def main() -> None:
+    section("1. 무료 오픈 데이터 — FIFA 월드컵 시즌")
+    comps = sb.competitions()
+    wc = comps[
+        (comps["competition_name"] == "FIFA World Cup")
+        & (comps["competition_id"] == COMPETITION_ID)
+    ]
+    print(wc[["competition_id", "season_id", "competition_name", "season_name"]].to_string(index=False))
 
-# ── 2. 2022 월드컵 결승전 선택 ───────────────────────────────
-section("2. 2022 월드컵 결승전")
-matches = sb.matches(competition_id=COMPETITION_ID, season_id=SEASON_ID)
-final = matches[matches["competition_stage"] == "Final"].iloc[0]
-print_match_summary(final)
+    section("2. 2022 월드컵 결승전")
+    matches = sb.matches(competition_id=COMPETITION_ID, season_id=SEASON_ID)
+    final = matches[matches["competition_stage"] == "Final"].iloc[0]
+    print_match_summary(final)
 
-match_id = final["match_id"]
+    match_id = final["match_id"]
 
-# ── 3. 이벤트 ────────────────────────────────────────────────
-section("3. 경기 이벤트")
-events = sb.events(match_id=match_id)
-lineups = sb.lineups(match_id=match_id)
-short_names = build_short_names(lineups)
+    section("3. 경기 이벤트")
+    events = sb.events(match_id=match_id)
+    lineups = sb.lineups(match_id=match_id)
+    short_names = build_short_names(lineups)
 
-print_event_summary(events)
+    print_event_summary(events)
 
-section("3-1. 득점 타임라인")
-print_goals(events, short_names)
+    section("3-1. 득점 타임라인")
+    print_goals(events, short_names)
 
-section("3-2. 이벤트 샘플 (한 줄이 경기 속 한 순간)")
-print_sample_events(events)
+    section("3-2. 이벤트 샘플 (한 줄이 경기 속 한 순간)")
+    print_sample_events(events)
 
-# ── 4. 라인업 ────────────────────────────────────────────────
-section("4. 라인업")
-print("  반환 타입: dict (키 = 팀 이름, 값 = 선수 DataFrame)")
-print_lineups_from_events(events, lineups)
+    section("4. 라인업")
+    print("  반환 타입: dict (키 = 팀 이름, 값 = 선수 DataFrame)")
+    print_lineups_from_events(events, lineups)
 
-# ── 5. 데이터 구조 참고 ──────────────────────────────────────
-section("5. 컬럼 구조 (DB 설계 참고용)")
-print(f"  경기(matches) 컬럼 수: {len(matches.columns)}")
-print(f"  이벤트(events) 컬럼 수: {len(events.columns)}")
-print(f"  라인업(lineups) 컬럼: {list(next(iter(lineups.values())).columns)}")
+    section("5. 컬럼 구조 (DB 설계 참고용)")
+    print(f"  경기(matches) 컬럼 수: {len(matches.columns)}")
+    print(f"  이벤트(events) 컬럼 수: {len(events.columns)}")
+    print(f"  라인업(lineups) 컬럼: {list(next(iter(lineups.values())).columns)}")
+
+
+if __name__ == "__main__":
+    main()

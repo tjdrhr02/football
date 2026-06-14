@@ -2,39 +2,31 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bootstrap import bootstrap
+
+ROOT = bootstrap()
+
+from football.config import DEFAULT_DB, db_config
+
 SCHEMA_DIR = ROOT / "db" / "schema"
-DEFAULT_DB = "football"
 
 
-def schema_files() -> list[Path]:
+def schema_files() -> list:
     files = sorted(SCHEMA_DIR.glob("*.sql"))
     if not files:
         raise FileNotFoundError(f"No SQL files in {SCHEMA_DIR}")
     return files
 
 
-def _base_url() -> str:
-    if url := os.environ.get("DATABASE_ADMIN_URL"):
-        return url.rsplit("/", 1)[0]
-    if url := os.environ.get("DATABASE_URL"):
-        return url.rsplit("/", 1)[0]
-    return "postgresql:///"
-
-
-def db_url(dbname: str) -> str:
-    return f"{_base_url()}/{dbname}"
-
-
 def ensure_database(dbname: str) -> None:
-    conn = psycopg2.connect(db_url("postgres"))
+    conn = psycopg2.connect(**db_config("postgres"))
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     try:
         with conn.cursor() as cur:
@@ -48,7 +40,7 @@ def ensure_database(dbname: str) -> None:
         conn.close()
 
 
-def run_sql_file(conn, path: Path) -> None:
+def run_sql_file(conn, path) -> None:
     sql = path.read_text(encoding="utf-8")
     print(f"[run] {path.relative_to(ROOT)}")
     with conn.cursor() as cur:
@@ -58,7 +50,7 @@ def run_sql_file(conn, path: Path) -> None:
 
 def init_db(dbname: str, recreate: bool = False) -> None:
     if recreate:
-        conn = psycopg2.connect(db_url("postgres"))
+        conn = psycopg2.connect(**db_config("postgres"))
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         try:
             with conn.cursor() as cur:
@@ -74,7 +66,7 @@ def init_db(dbname: str, recreate: bool = False) -> None:
 
     ensure_database(dbname)
 
-    conn = psycopg2.connect(db_url(dbname))
+    conn = psycopg2.connect(**db_config(dbname))
     try:
         for path in schema_files():
             run_sql_file(conn, path)
@@ -103,7 +95,7 @@ def verify(dbname: str) -> None:
             "embedding_documents",
         },
     }
-    conn = psycopg2.connect(db_url(dbname))
+    conn = psycopg2.connect(**db_config(dbname))
     try:
         with conn.cursor() as cur:
             for schema, tables in expected.items():

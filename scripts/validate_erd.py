@@ -1,16 +1,21 @@
 """ERD 설계를 StatsBomb WC2022 실제 데이터로 검증."""
+import sys
 import warnings
 from collections import defaultdict
+from pathlib import Path
 
 import pandas as pd
 
 warnings.filterwarnings("ignore")
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bootstrap import bootstrap
+
+bootstrap()
+
 from statsbombpy import sb
 
-COMPETITION_ID = 43
-SEASON_ID = 106
-KOREA_TEAM_ID = 791
+from football.config import COMPETITION_ID, KOREA_TEAM_ID, SEASON_ID
 
 
 def section(title: str) -> None:
