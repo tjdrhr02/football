@@ -4,14 +4,8 @@ from __future__ import annotations
 import argparse
 import sys
 import warnings
-from pathlib import Path
 
 warnings.filterwarnings("ignore")
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bootstrap import bootstrap
-
-bootstrap()
 
 from football.config import COMPETITION_ID, DEFAULT_DB, SEASON_ID
 from football.db.connection import transaction
@@ -20,7 +14,7 @@ from football.pipeline.reporting import print_staging_counts
 from football.pipeline.tracking import finish_ingestion_run, start_ingestion_run
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Ingest StatsBomb Open Data into staging")
     parser.add_argument(
         "--table",
@@ -53,7 +47,7 @@ def main() -> int:
         action="store_true",
         help="Per-match progress for events load",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.counts_only:
         try:

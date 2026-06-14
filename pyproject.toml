@@ -5,15 +5,33 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "football"
 version = "0.1.0"
-description = "Football Tactical Intelligence Platform — WC2022 StatsBomb pipeline"
+description = "Football Tactical Intelligence Platform — StatsBomb pipeline"
 requires-python = ">=3.9"
 dependencies = [
     "statsbombpy>=1.19.0",
     "pandas>=2.3.0",
     "psycopg2-binary>=2.9.0",
-    "sqlalchemy>=2.0.0",
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+football-pipeline = "football.pipeline.runner:main"
+football-ingest = "football.cli.ingest:main"
+football-aggregate = "football.cli.aggregate:main"
+football-init-db = "football.cli.init_db:main"
+football-analysis = "football.cli.analysis:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+football = ["sql/**/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

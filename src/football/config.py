@@ -16,6 +16,11 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SCHEMA_DIR = PROJECT_ROOT / "db" / "schema"
+PACKAGE_DIR = Path(__file__).resolve().parent
+SQL_DIR = PACKAGE_DIR / "sql"
+
 DB_CONFIG: dict[str, object] = {
     "host": os.getenv("PGHOST", "localhost"),
     "port": int(os.getenv("PGPORT", "5432")),

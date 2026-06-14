@@ -1,18 +1,15 @@
-"""WC2022 exploratory analysis queries — validation + story data."""
+"""Exploratory analysis queries — validation + story data."""
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from decimal import Decimal
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bootstrap import bootstrap
-
-bootstrap()
-
-from football.config import COMPETITION_ID, KOREA_TEAM_ID, SEASON_ID
+from football.config import COMPETITION_ID, KOREA_TEAM_ID, PROJECT_ROOT, SEASON_ID
 from football.db.connection import get_connection
+
+SNAPSHOT_PATH = PROJECT_ROOT / "docs" / "snapshots" / "analysis_results.json"
 
 
 def json_default(obj):
@@ -35,7 +32,20 @@ def run(cur, title: str, sql: str, params=None):
     return rows
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run exploratory WC2022 analysis SQL")
+    parser.add_argument("--competition-id", type=int, default=COMPETITION_ID)
+    parser.add_argument("--season-id", type=int, default=SEASON_ID)
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=str(SNAPSHOT_PATH),
+        help="JSON snapshot path (default: docs/snapshots/analysis_results.json)",
+    )
+    args = parser.parse_args(argv)
+    competition_id = args.competition_id
+    season_id = args.season_id
+
     conn = get_connection()
     cur = conn.cursor()
     results: dict[str, list] = {}
@@ -54,10 +64,8 @@ def main() -> None:
         UNION ALL
         SELECT 'formation', COUNT(*)::int FROM analytics.team_match_formation
         """,
-        (COMPETITION_ID, SEASON_ID),
+        (competition_id, season_id),
     )
-
-    # 1. Goals by stage
     results["goals_by_stage"] = run(
         cur,
         "Q1 Goals by tournament stage",
@@ -83,7 +91,7 @@ def main() -> None:
         GROUP BY m.competition_stage, so.stage_rank
         ORDER BY so.stage_rank
         """,
-        (COMPETITION_ID, SEASON_ID),
+        (competition_id, season_id),
     )
 
     # 2. Best chance creators (xG)
@@ -108,7 +116,7 @@ def main() -> None:
         ORDER BY total_xg DESC
         LIMIT 10
         """,
-        (COMPETITION_ID, SEASON_ID),
+        (competition_id, season_id),
     )
 
     # 3. Pass accuracy vs winning
@@ -151,7 +159,7 @@ def main() -> None:
         GROUP BY result
         ORDER BY CASE result WHEN 'win' THEN 1 WHEN 'draw' THEN 2 ELSE 3 END
         """,
-        (COMPETITION_ID, SEASON_ID),
+        (competition_id, season_id),
     )
 
     # 4. Pass accuracy under pressure
@@ -241,7 +249,7 @@ def main() -> None:
                  km.opponent_name, km.home_score, km.away_score, km.korea_side
         ORDER BY km.match_date
         """,
-        (KOREA_TEAM_ID, KOREA_TEAM_ID, KOREA_TEAM_ID, COMPETITION_ID, SEASON_ID, KOREA_TEAM_ID, KOREA_TEAM_ID),
+        (KOREA_TEAM_ID, KOREA_TEAM_ID, KOREA_TEAM_ID, competition_id, season_id, KOREA_TEAM_ID, KOREA_TEAM_ID),
     )
 
     # Extra 1: xG over/underperformance (finishing)
@@ -266,7 +274,7 @@ def main() -> None:
         ORDER BY goals_minus_xg DESC
         LIMIT 8
         """,
-        (COMPETITION_ID, SEASON_ID),
+        (competition_id, season_id),
     )
 
     # Extra 2: Knockout defensive intensity (def actions per match by stage)
@@ -299,7 +307,7 @@ def main() -> None:
         GROUP BY md.competition_stage, so.stage_rank
         ORDER BY so.stage_rank
         """,
-        (COMPETITION_ID, SEASON_ID),
+        (competition_id, season_id),
     )
 
     # Extra 3: Korea xG for/against in their campaign
@@ -335,16 +343,20 @@ def main() -> None:
                  km.home_score, km.away_score
         ORDER BY km.match_date
         """,
-        (KOREA_TEAM_ID, COMPETITION_ID, SEASON_ID, KOREA_TEAM_ID, KOREA_TEAM_ID,
+        (KOREA_TEAM_ID, competition_id, season_id, KOREA_TEAM_ID, KOREA_TEAM_ID,
          KOREA_TEAM_ID, KOREA_TEAM_ID, KOREA_TEAM_ID, KOREA_TEAM_ID),
     )
 
-    out = Path(__file__).resolve().parents[1] / "explore" / "analysis_wc2022_results.json"
+    from pathlib import Path
+
+    out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, indent=2, default=json_default), encoding="utf-8")
     print(f"\n[saved] {out}")
 
     conn.close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

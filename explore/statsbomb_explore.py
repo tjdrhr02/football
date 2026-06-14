@@ -1,16 +1,9 @@
-"""StatsBomb 무료 데이터 구조 탐색 — 2022 FIFA 월드컵 결승전."""
+"""StatsBomb Open Data exploration (no PostgreSQL required)."""
 from __future__ import annotations
 
-import sys
 import warnings
-from pathlib import Path
 
 warnings.filterwarnings("ignore")
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
 
 from statsbombpy import sb
 

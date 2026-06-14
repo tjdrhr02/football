@@ -17,18 +17,12 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bootstrap import bootstrap
-
-ROOT = bootstrap()
-
-from football.config import KOREA_TEAM_ID
+from football.config import KOREA_TEAM_ID, PROJECT_ROOT, SCHEMA_DIR
 from football.db.connection import get_connection
 
-SCHEMA_INDEXES = ROOT / "db" / "schema" / "03_indexes.sql"
-OUT_DIR = ROOT / "docs" / "performance"
+SCHEMA_INDEXES = SCHEMA_DIR / "03_indexes.sql"
+OUT_DIR = PROJECT_ROOT / "docs" / "performance"
 
 PERF_INDEXES = [
     "idx_fpms_player_match",
@@ -223,7 +217,7 @@ def run_phase(phase: str, conn) -> list[dict]:
             {
                 "phase": phase,
                 "key": bench.key,
-                "file": str(path.relative_to(ROOT)),
+                "file": str(path.relative_to(PROJECT_ROOT)),
                 **metrics,
             }
         )

@@ -15,7 +15,8 @@ import {
 
 const stageLabels = ["Group", "R16", "QF", "SF", "3rd", "Final"];
 
-export default function Wc2022AnalysisStory() {
+/** WC2022 seed — values from `docs/snapshots/analysis_results.json` (football-analysis). */
+export default function AnalysisStory() {
   const theme = useHostTheme();
 
   return (
@@ -23,7 +24,8 @@ export default function Wc2022AnalysisStory() {
       <Stack gap={8}>
         <H1>WC2022 Analysis Story</H1>
         <Text tone="secondary">
-          StatsBomb Open Data · staging + analytics · 64 matches · validated 2026-06-14
+          StatsBomb Open Data · staging + analytics · 64 matches · snapshot{" "}
+          <code>docs/snapshots/analysis_results.json</code>
         </Text>
       </Stack>
 
@@ -149,6 +151,11 @@ export default function Wc2022AnalysisStory() {
           </Text>
         </CardBody>
       </Card>
+
+      <Callout tone="neutral" title="Regenerate data">
+        Run <code>football-analysis</code> after pipeline changes to refresh{" "}
+        <code>docs/snapshots/analysis_results.json</code>, then update chart values here if needed.
+      </Callout>
     </Stack>
   );
 }
