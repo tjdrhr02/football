@@ -1,0 +1,408 @@
+// Football Tactical Intelligence — WC 2022 ERD
+// dbdiagram.io에 붙여넣기용
+// 목적: staging.events(수만 행) → fact_player_match_stats(경기×선수) 집계로 분석 가속
+
+Project football_wc2022 {
+  database_type: 'PostgreSQL'
+  Note: '''
+    시드: FIFA World Cup 2022 (competition_id=43, season_id=106, 64경기)
+    우리 클럽: South Korea (team_id=791)
+    데이터: StatsBomb Open Data only
+
+    [집계 흐름]
+    staging.events (~250k rows)
+      + staging.match_lineups / match_lineup_positions
+      → ETL aggregate
+      → analytics.fact_player_match_stats (~2k rows, grain: match_id × player_id)
+  '''
+}
+
+// =============================================================================
+// STAGING (Silver) — StatsBomb 원천
+// =============================================================================
+
+TableGroup staging [color: #3498DB] {
+  staging.competitions
+  staging.seasons
+  staging.teams
+  staging.players
+  staging.matches
+  staging.events
+  staging.match_lineups
+  staging.match_lineup_positions
+  staging.ingestion_runs
+}
+
+Table staging.competitions {
+  competition_id int [pk, note: 'StatsBomb. WC2022=43']
+  competition_name varchar [not null]
+  country_name varchar
+  competition_gender varchar
+  data_source varchar [default: 'statsbomb_open']
+  ingested_at timestamptz
+
+  Note: '대회 마스터'
+}
+
+Table staging.seasons {
+  season_id int [pk, note: 'WC2022=106']
+  competition_id int [not null, ref: > staging.competitions.competition_id]
+  season_name varchar [not null, note: 'e.g. 2022']
+
+  indexes {
+    (competition_id, season_id) [unique]
+  }
+
+  Note: '시즌. WC2022는 1 season만'
+}
+
+Table staging.teams {
+  team_id int [pk, note: 'South Korea=791']
+  team_name varchar [not null]
+  team_gender varchar
+  country_id int
+  country_name varchar
+  data_source varchar [default: 'statsbomb_open']
+  ingested_at timestamptz
+
+  Note: '32개 국가대표팀'
+}
+
+Table staging.players {
+  player_id int [pk]
+  player_name varchar [not null]
+  player_nickname varchar
+  country_id int
+  country_name varchar
+  data_source varchar [default: 'statsbomb_open']
+  ingested_at timestamptz
+
+  Note: 'WC 출전 선수 마스터 (~800명)'
+}
+
+Table staging.matches {
+  match_id int [pk]
+  competition_id int [not null, ref: > staging.competitions.competition_id]
+  season_id int [not null, ref: > staging.seasons.season_id]
+  match_date date [not null]
+  kick_off time
+  home_team_id int [not null, ref: > staging.teams.team_id]
+  away_team_id int [not null, ref: > staging.teams.team_id]
+  home_score int
+  away_score int
+  match_status varchar
+  competition_stage varchar [not null, note: 'Group Stage, Final, ...']
+  match_week int
+  stadium_id int
+  stadium_name varchar
+  referee_id int
+  referee_name varchar
+  data_version varchar
+  last_updated timestamptz
+  data_source varchar [default: 'statsbomb_open']
+  ingested_at timestamptz
+
+  indexes {
+    (competition_id, season_id) [name: 'idx_matches_comp_season']
+    (match_date) [name: 'idx_matches_date']
+    (home_team_id) [name: 'idx_matches_home']
+    (away_team_id) [name: 'idx_matches_away']
+  }
+
+  Note: '64경기. 상대·일자·홈어웨이·대회 스테이지'
+}
+
+Table staging.events {
+  event_id uuid [pk, note: 'StatsBomb id']
+  match_id int [not null, ref: > staging.matches.match_id]
+  index int [not null, note: '경기 내 이벤트 순서']
+  period smallint [not null, note: '1=전반 2=후반 3~4=연장 5=승부차기']
+  timestamp varchar
+  minute smallint
+  second smallint
+  type varchar [not null, note: 'Pass, Shot, Pressure, ...']
+  possession int
+  possession_team_id int [ref: > staging.teams.team_id]
+  team_id int [ref: > staging.teams.team_id]
+  player_id int [ref: > staging.players.player_id]
+  position varchar
+  location_x decimal(6,2) [note: '0-120']
+  location_y decimal(6,2) [note: '0-80']
+  duration decimal(8,3)
+  under_pressure boolean
+  counterpress boolean
+  play_pattern varchar
+  outcome varchar [note: 'pass_outcome / shot_outcome 통합']
+  shot_statsbomb_xg decimal(6,4)
+  payload jsonb [not null, default: '{}', note: '타입별 sparse 속성 전부']
+  data_source varchar [default: 'statsbomb_open']
+  ingested_at timestamptz
+
+  indexes {
+    (match_id) [name: 'idx_events_match']
+    (match_id, index) [name: 'idx_events_match_index']
+    (match_id, type, player_id) [name: 'idx_events_match_type_player']
+    (player_id, match_id) [name: 'idx_events_player_match']
+  }
+
+  Note: '''
+    ★ Raw fact. WC2022 전체 ~250k rows (경기당 3.5~4.5k)
+    집계 ETL 입력. 분석 쿼리는 이 테이블 직접 스캔하지 않음.
+  '''
+}
+
+Table staging.match_lineups {
+  lineup_id int [pk, increment]
+  match_id int [not null, ref: > staging.matches.match_id]
+  team_id int [not null, ref: > staging.teams.team_id]
+  player_id int [not null, ref: > staging.players.player_id]
+  jersey_number smallint
+  is_starter boolean [not null, default: false]
+  cards jsonb
+
+  indexes {
+    (match_id, team_id, player_id) [unique, name: 'uq_lineup_match_team_player']
+    (match_id, team_id) [name: 'idx_lineup_match_team']
+  }
+
+  Note: '경기 스쿼드. 출전 선수 식별·선발 여부'
+}
+
+Table staging.match_lineup_positions {
+  lineup_position_id int [pk, increment]
+  lineup_id int [not null, ref: > staging.match_lineups.lineup_id]
+  position_name varchar [not null, note: 'Right Back, Centre Forward, ...']
+  statsbomb_position_id int
+  from_period smallint
+  from_minute smallint
+  from_second smallint
+  to_period smallint
+  to_minute smallint
+  to_second smallint
+  start_reason varchar
+  end_reason varchar
+
+  indexes {
+    (lineup_id) [name: 'idx_positions_lineup']
+  }
+
+  Note: '포지션·교체 시간 구간. minutes_played 집계에 사용'
+}
+
+Table staging.ingestion_runs {
+  run_id int [pk, increment]
+  source varchar [not null, default: 'statsbomb_open']
+  competition_id int [not null]
+  season_id int [not null]
+  started_at timestamptz [not null]
+  finished_at timestamptz
+  status varchar [not null, note: 'running | success | failed']
+  matches_processed int [default: 0]
+  events_processed int [default: 0]
+  error_message text
+
+  Note: '배치 멱등·재처리 추적'
+}
+
+// =============================================================================
+// OLTP — 우리 클럽(South Korea) 선수 마스터
+// =============================================================================
+
+TableGroup oltp [color: #2ECC71] {
+  oltp.teams
+  oltp.players
+}
+
+Table oltp.teams {
+  team_id int [pk, increment]
+  statsbomb_team_id int [unique, not null, note: '791 = South Korea']
+  team_name varchar [not null]
+  country_name varchar
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: '클럽 운영 마스터. WC에서는 한국대표팀 1건'
+}
+
+Table oltp.players {
+  player_id int [pk, increment]
+  statsbomb_player_id int [unique, ref: > staging.players.player_id]
+  team_id int [not null, ref: > oltp.teams.team_id]
+  full_name varchar [not null]
+  display_name varchar
+  date_of_birth date
+  nationality varchar
+  height_cm smallint
+  weight_kg smallint
+  preferred_foot char(1) [note: 'L/R/B']
+  primary_position varchar [note: 'GK, CB, CM, FW ...']
+  secondary_positions text [note: 'PostgreSQL: varchar[]']
+  market_value_eur bigint
+  is_active boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (team_id) [name: 'idx_oltp_players_team']
+    (statsbomb_player_id) [name: 'idx_oltp_players_sb']
+    (primary_position) [name: 'idx_oltp_players_pos']
+  }
+
+  Note: '신체·포지션·시장가치. StatsBomb player와 1:1 매핑'
+}
+
+// =============================================================================
+// ANALYTICS (Gold / OLAP) — 스타 스키마
+// =============================================================================
+
+TableGroup analytics [color: #E74C3C] {
+  analytics.dim_competition
+  analytics.dim_team
+  analytics.dim_player
+  analytics.dim_match
+  analytics.dim_formation
+  analytics.fact_player_match_stats
+  analytics.embedding_documents
+}
+
+Table analytics.dim_competition {
+  competition_key int [pk, increment]
+  competition_id int [unique, not null, ref: > staging.competitions.competition_id]
+  competition_name varchar [not null]
+  season_id int [not null]
+  season_name varchar [not null]
+
+  Note: 'Dimension — 대회·시즌'
+}
+
+Table analytics.dim_team {
+  team_key int [pk, increment]
+  team_id int [unique, not null, ref: > staging.teams.team_id]
+  team_name varchar [not null]
+  country_name varchar
+
+  Note: 'Dimension — 팀'
+}
+
+Table analytics.dim_player {
+  player_key int [pk, increment]
+  player_id int [unique, not null, ref: > staging.players.player_id]
+  oltp_player_id int [ref: > oltp.players.player_id]
+  display_name varchar
+  primary_position varchar
+  nationality varchar
+
+  Note: 'Dimension — 선수 (staging + oltp 통합)'
+}
+
+Table analytics.dim_match {
+  match_key int [pk, increment]
+  match_id int [unique, not null, ref: > staging.matches.match_id]
+  match_date date [not null]
+  competition_key int [not null, ref: > analytics.dim_competition.competition_key]
+  home_team_key int [not null, ref: > analytics.dim_team.team_key]
+  away_team_key int [not null, ref: > analytics.dim_team.team_key]
+  home_score int
+  away_score int
+  competition_stage varchar [not null]
+  is_home_win boolean
+  is_draw boolean
+  is_away_win boolean
+
+  indexes {
+    (match_date, competition_key) [name: 'idx_dim_match_date_comp']
+  }
+
+  Note: 'Dimension — 경기. 라인업 추천 시 상대 경기 필터'
+}
+
+Table analytics.dim_formation {
+  formation_key int [pk, increment]
+  match_id int [not null, ref: > staging.matches.match_id]
+  team_id int [not null, ref: > staging.teams.team_id]
+  formation_code varchar [not null, note: '433, 4231, ...']
+  source_event_type varchar [note: 'Starting XI | Tactical Shift']
+
+  indexes {
+    (match_id, team_id, formation_code) [unique, name: 'uq_formation_match_team']
+  }
+
+  Note: 'Dimension — 경기·팀별 포메이션. Starting XI 이벤트에서 ETL'
+}
+
+Table analytics.fact_player_match_stats {
+  match_id int [not null, ref: > staging.matches.match_id]
+  player_id int [not null, ref: > staging.players.player_id]
+  team_id int [not null, ref: > staging.teams.team_id]
+  formation_key int [ref: > analytics.dim_formation.formation_key]
+
+  minutes_played decimal(6,2) [not null, default: 0]
+  is_starter boolean [not null, default: false]
+  position_played varchar
+
+  passes_attempted int [not null, default: 0]
+  passes_completed int [not null, default: 0]
+  pass_completion_rate decimal(5,4)
+  progressive_passes int [default: 0]
+
+  shots int [not null, default: 0]
+  shots_on_target int [not null, default: 0]
+  goals int [not null, default: 0]
+  assists int [not null, default: 0]
+  xg decimal(6,4) [default: 0]
+  xa decimal(6,4) [default: 0]
+
+  tackles int [default: 0]
+  interceptions int [default: 0]
+  pressures int [default: 0]
+  blocks int [default: 0]
+
+  dribbles_attempted int [default: 0]
+  dribbles_completed int [default: 0]
+  carries int [default: 0]
+
+  yellow_cards smallint [not null, default: 0]
+  red_cards smallint [not null, default: 0]
+
+  data_source varchar [default: 'statsbomb_open']
+  aggregated_at timestamptz [not null]
+
+  indexes {
+    (match_id, player_id) [pk, name: 'pk_fpms']
+    (player_id, match_id) [name: 'idx_fpms_player_match']
+    (team_id, match_id) [name: 'idx_fpms_team_match']
+    (match_id, team_id, player_id) [name: 'idx_fpms_cover', note: 'INCLUDE xg, passes_* in DDL']
+  }
+
+  Note: '''
+    ★★ 핵심 OLAP 팩트
+    Grain: match_id × player_id (경기별 선수 1행)
+    WC2022 ~2,000 rows vs staging.events ~250,000 rows
+
+    ETL: events에서 type별 COUNT/SUM → 이 테이블
+    분석·라인업 추천 SQL은 이 테이블을 주로 조회
+  '''
+}
+
+Table analytics.embedding_documents {
+  doc_id int [pk, increment]
+  doc_type varchar [not null, note: 'match_report | tactical_pattern | player_profile']
+  ref_id varchar [not null, note: 'match_id or player_id']
+  content text [not null]
+  embedding varchar [note: 'pgvector vector(1536). Phase 5']
+  metadata jsonb
+  created_at timestamptz
+
+  indexes {
+    (doc_type, ref_id) [name: 'idx_embedding_type_ref']
+  }
+
+  Note: 'RAG용. Phase 5. SQL 컨텍스트와 함께 LLM에 주입'
+}
+
+// =============================================================================
+// 집계 관계 (논리적 — ETL, FK 아님)
+// =============================================================================
+
+// Ref: staging.events.match_id > analytics.fact_player_match_stats.match_id
+// dbdiagram은 ETL 흐름을 화살표로 그리기 어려우므로 Note로 표현
