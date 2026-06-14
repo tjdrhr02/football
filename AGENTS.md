@@ -1,59 +1,54 @@
 # Football Tactical Intelligence Platform — Agent Context
 
-> Cursor 에이전트 **시스템 프롬프트**. 구현 전 필독. 불명확한 결정은 사용자에게 확인.
+> Cursor 에이전트 **시스템 프롬프트**. 구현 전 필독. 불명확한 결정은 사용자에게 확인.  
+> ERD 상세: `db/erd.dbml` | 데이터 검증: `scripts/validate_erd.py`
 
 ---
 
 ## 1. 프로젝트 정체성
 
-**AI 기반 축구 클럽 선수 관리 및 전술 의사결정 플랫폼** (포트폴리오)
+**AI 기반 축구 전술 의사결정 플랫폼** (포트폴리오)
 
-어필 포인트: 단순 CRUD가 아니라 **데이터 수집 → 저장/모델링 → 분석 → AI 추론**을 클라우드 위에서 end-to-end로 구현.
+어필: 단순 CRUD가 아니라 **수집 → 저장/모델링 → 분석 → AI 추론**을 클라우드 위에서 end-to-end 구현.
 
 ```
-수집 → S3(raw) → staging(silver) → analytics(gold/RDS) → 분석 → AI(RAG)
+수집 → S3(raw) → staging(silver) → analytics(gold) → 분석 → AI(RAG)
 ```
 
 | 역량 | 어필 |
 |------|------|
-| DA | OLTP/OLAP 분리, 스타 스키마, `PlayerMatchStats` 팩트, 인덱스 + `EXPLAIN ANALYZE` 전후 비교 |
-| DE | 메달리온, 멱등·증분 적재, 실패 재처리 |
-| 클라우드 | EC2 PG 직접 운영 → RDS 마이그레이션 비교, IAM/VPC/SG |
-| AI | RAG + pgvector, **SQL 통계 선계산 후 LLM** (순수 LLM 추천 금지) |
+| DA | raw events → 경기×선수 팩트 집계, 인덱스 + `EXPLAIN ANALYZE` 전후 비교 |
+| DE | 메달리온, 멱등·증분 적재, 실패 재처리, `ingestion_runs` |
+| 클라우드 | EC2 PG → RDS 마이그레이션 비교, IAM/VPC/SG |
+| AI | RAG + pgvector, **SQL 선계산 후 LLM** (순수 LLM 추천 금지) |
 
 ### 데모 시나리오 (이것만)
 **다음 경기 상대 분석 → 우리 팀(South Korea) 라인업 추천**
 
-- 우리 클럽: **South Korea** (`statsbomb_team_id = 791`)
-- 시드 데이터: **2022 FIFA 월드컵** (`competition_id=43`, `season_id=106`, 64경기)
-- 데이터 소스: **StatsBomb Open Data만** (다른 API·스크래핑 사용 안 함)
+- 우리 팀: **South Korea** (`team_id = 791`, WC 4경기)
+- 분석 대상: **32개국 전체** (상대 전술 파악용)
+- 시드: **2022 FIFA 월드컵** (`competition_id=43`, `season_id=106`, 64경기)
+- 데이터: **StatsBomb Open Data만**
 
 ---
 
-## 2. OLTP vs OLAP (이 프로젝트에서의 의미)
+## 2. staging vs analytics (OLAP 관점)
 
-### OLTP (Online Transaction Processing)
-**일상 업무용 DB** — 한 건씩 빠르게 읽고 쓰는 패턴.
+| | staging (Silver) | analytics (Gold) |
+|---|------------------|------------------|
+| 역할 | StatsBomb **원천** 보존 | **집계·분석** 진입점 |
+| 규모 | events **~235k행** | fact **~2k행** |
+| 쿼리 | ETL 입력용 (분석 직접 스캔 X) | SUM/GROUP BY, 라인업 추천 SQL |
+| 정규화 | 3NF + events `payload JSONB` | 팩트 테이블 (사전 집계) |
 
-- 예: 선수 정보 수정, 스쿼드 등록
-- 특징: 정규화(중복 최소화), 무결성, 행 단위 갱신
-- 이 프로젝트: `oltp` 스키마 — **우리 클럽 선수 마스터** (신체·포지션·시장가치 등)
+**집계 목적**: 수만 행 events → 경기×선수 팩트로 **~118배 축소** (실측 234,637 → 1,996행).
 
-### OLAP (Online Analytical Processing)
-**분석용 DB** — 많은 데이터를 모아 통계·집계·비교하는 패턴.
-
-- 예: "상대팀 측면 패스 비율", "우리 선수 WC 전체 xG"
-- 특징: 스타 스키마(fact + dimension), 사전 집계, 대량 스캔
-- 이 프로젝트: `analytics` 스키마 — **`fact_player_match_stats`가 핵심**
-
-### 왜 나누나 (포트폴리오 서술)
-| | OLTP | OLAP |
-|---|------|------|
-| 목적 | 클럽 운영·마스터 | 전술 분석·AI 컨텍스트 |
-| 정규화 | 3NF | 팩트 테이블(분석 친화) |
-| 쿼리 | PK 단건 조회 | SUM/AVG/GROUP BY |
-
-`staging`은 StatsBomb **원천 적재(silver)** — OLAP 집계의 재료.
+### 제거한 설계 (검증 후 확정)
+| 제거 | 이유 |
+|------|------|
+| `oltp.*` | WC는 국가대회. 신체·시장가치 StatsBomb에 없음 → 합성 데이터는 약점 |
+| `analytics.dim_*` | 팩트 ~2k행에 dim 4개는 과설계. `staging JOIN`으로 충분 |
+| `dim_formation` FK | Tactical Shift 243건 — 팩트 FK로 시점 모호 → `team_match_formation` 타임라인으로 대체 |
 
 ---
 
@@ -61,237 +56,206 @@
 
 ### 완료
 - `explore_statsbomb.py`, Python venv, statsbombpy
+- ERD 설계·단순화 (`db/erd.dbml`, 11테이블)
+- **실데이터 검증** (`scripts/validate_erd.py`) — WC2022 64경기 전수
+
+### 실측 규모 (검증 결과)
+| 항목 | 값 |
+|------|-----|
+| 경기 | 64 |
+| 팀 | 32 |
+| events | 234,637 (경기당 ~3,666) |
+| fact_player_match_stats | ~1,996 |
+| formation 이벤트 | 371 (Starting XI 128 + Tactical Shift 243) |
+| 한국 경기 | 4 (`3857287`, `3857299`, `3857262`, `3869253`) |
 
 ### 지금 할 일
-1. 데이터 모델 확정 → 로컬 PostgreSQL DDL (`oltp`, `staging`, `analytics`)
-2. 2022 WC 64경기 StatsBomb 인제스트 → `staging`
-3. `analytics.fact_player_match_stats` 집계
+1. PostgreSQL DDL (`staging` + `analytics`) — `db/schema/*.sql`
+2. WC2022 인제스트 → `staging`
+3. ETL → `fact_player_match_stats`, `team_match_formation`
 4. 인덱스 + `EXPLAIN ANALYZE` 캡처 (`docs/performance/`)
 
 ### 이후 (Phase 2+)
 | Phase | 내용 |
 |-------|------|
-| 2 | S3 raw, Airflow/MWAA(또는 EventBridge+Lambda), 멱등 배치 |
-| 3 | AWS RDS PostgreSQL + **pgvector** |
-| 4 | EC2 PG → RDS 마이그레이션 비교 문서 |
-| 5 | AI 라인업 추천 (SQL + RAG + LLM) |
+| 2 | S3 bronze, Airflow/MWAA 또는 EventBridge+Lambda |
+| 3 | AWS RDS PostgreSQL + pgvector |
+| 4 | EC2 PG → RDS 비교 문서 |
+| 5 | AI 라인업 (SQL + RAG + LLM) |
 
 ### 범위 제외
-- 계약·부상·훈련 데이터
-- Football-Data.org, FBref, Kaggle 등 **StatsBomb 외 소스**
-- 웹 UI, 인증, 실시간 스트리밍, StatsBomb 유료 API
+- 계약·부상·훈련, StatsBomb 외 소스, 웹 UI, 유료 API
 
 ---
 
-## 4. 데이터 모델
+## 4. 데이터 모델 (11테이블)
 
-### 스키마 구성
-```
-oltp       — 우리 클럽 선수 마스터 (정규화, OLTP)
-staging    — StatsBomb 원천 (이벤트·경기, silver)
-analytics  — 분석 팩트·차원 (스타 스키마, OLAP)
-```
+> 전체 ERD: `db/erd.dbml`
 
-### ER (핵심만)
+### staging (8)
+| 테이블 | 역할 |
+|--------|------|
+| `competitions`, `seasons` | 대회·시즌. seasons PK = `(competition_id, season_id)` 복합 |
+| `teams`, `players` | 32팀, ~800선수. lineups에서 upsert |
+| `matches` | 64경기 메타. `stadium`→`stadium_name`, `referee`→`referee_name` |
+| `events` | **~235k raw**. 공통 컬럼 + `payload JSONB` |
+| `match_lineups` | 경기 스쿼드·선발 여부 |
+| `match_lineup_positions` | 포지션·교체 **시간 구간** → minutes 집계 |
+| `ingestion_runs` | 배치 멱등·재처리 추적 |
+
+### analytics (3)
+| 테이블 | 역할 |
+|--------|------|
+| **`fact_player_match_stats`** ★ | grain: `(match_id, player_id)`. 분석·SQL 컨텍스트 진입점 |
+| **`team_match_formation`** | `(match_id, team_id, from_minute)` 포메이션 타임라인 |
+| `embedding_documents` | RAG 벡터 (Phase 5) |
+
+### ER (핵심)
 
 ```mermaid
 erDiagram
-    teams ||--o{ players : squad
     matches ||--o{ events : has
-    matches ||--o{ formations : uses
+    matches ||--o{ match_lineups : has
+    match_lineups ||--o{ match_lineup_positions : positions
+    matches ||--o{ fact_player_match_stats : aggregates
     players ||--o{ fact_player_match_stats : stats
-    matches ||--o{ fact_player_match_stats : stats
-    teams ||--o{ fact_player_match_stats : stats
+    matches ||--o{ team_match_formation : timeline
 ```
 
-### 핵심 엔터티
+### fact_player_match_stats 컬럼
+출전(minutes, is_starter, position) · 패스 · 슈팅(xG, goals, assists) · 수비(pressures, interceptions, blocks) · dribbles · cards
 
-#### Team (`oltp.teams` + `staging.teams`)
-- StatsBomb 팀 ID, 팀명, 국가
-- 우리 클럽: South Korea (`791`)
-
-#### Player (`oltp.players` + `staging.players`)
-| 필드 | 비고 |
-|------|------|
-| 신체정보 | height_cm, weight_kg, preferred_foot |
-| 포지션 | primary_position, secondary_positions |
-| 시장가치 | market_value_eur |
-| 매핑 | `statsbomb_player_id`로 WC 데이터 연결 |
-
-> 계약·부상·훈련 테이블은 **만들지 않음**.
-
-#### Match (`staging.matches`)
-- 상대팀, 일자, 홈/어웨이, 대회, 스테이지, 스코어
-- PK: `match_id` (StatsBomb)
-
-#### Formation (`analytics.dim_formation`)
-- 경기·팀별 포메이션 (`433`, `4231` …)
-- `Starting XI` / `Tactical Shift` 이벤트에서 ETL
-
-#### PlayerMatchStats (`analytics.fact_player_match_stats`) ★ 핵심 팩트
-**Grain**: `(match_id, player_id)` — 경기별 선수 1행
-
-| 그룹 | 컬럼 |
-|------|------|
-| 출전 | minutes_played, is_starter, position_played |
-| 패스 | passes_attempted, passes_completed, pass_completion_rate |
-| 슈팅 | shots, shots_on_target, goals, assists, xg, xa |
-| 수비 | tackles, interceptions, pressures, blocks |
-| 기타 | dribbles, carries, yellow_cards, red_cards |
-
-집계 원천: `staging.events` + `staging.match_lineups`
-
-#### staging.events
-- 공통 컬럼 + `payload JSONB` (94컬럼 wide table 금지)
-- PK: `event_id` (UUID)
-
-### statsbombpy → DB
-| API | 테이블 |
-|-----|--------|
-| `competitions()` | `staging.competitions`, `staging.seasons` |
-| `matches(43, 106)` | `staging.matches` + teams |
-| `events(match_id)` | `staging.events` |
-| `lineups(match_id)` | `staging.match_lineups` |
-| 집계 ETL | `analytics.fact_player_match_stats`, `dim_formation` |
+FK는 **staging 원천 ID 직접 참조** (dim 없음).
 
 ---
 
-## 5. 인덱스 설계
+## 5. ETL 규칙 (실데이터 검증 반영)
 
-**원칙**: 쿼리 패턴 먼저 정의 → 복합·커버링 인덱스 → `EXPLAIN (ANALYZE, BUFFERS)` 전후 캡처.
+### events → fact 집계
+| fact 컬럼 | 집계 규칙 |
+|-----------|-----------|
+| `passes_attempted` | `type = 'Pass'` COUNT |
+| `passes_completed` | Pass 중 `pass_outcome IS NULL` (Incomplete/Out = 실패) |
+| `shots` / `goals` | `type = 'Shot'` / `shot_outcome = 'Goal'` |
+| `shots_on_target` | Shot 중 `shot_outcome IN ('Saved', 'Goal')` |
+| `pressures` | `type = 'Pressure'` |
+| `tackles` | `type = 'Duel' AND duel_type = 'Tackle'` (Tackle 타입 없음) |
+| `interceptions` / `blocks` / `dribbles` / `carries` | 해당 type COUNT |
+| `assists` | Pass의 `pass_goal_assist` |
+| `xg` | Shot의 `shot_statsbomb_xg` SUM |
+| `minutes_played` | `match_lineup_positions` 구간 합산 |
+| `progressive_passes` | 전용 컬럼 없음 → **NULL 허용** |
 
-```sql
--- 팩트: 경기별·선수별 (핵심)
-CREATE INDEX idx_fpms_match_player
-  ON analytics.fact_player_match_stats (match_id, player_id);
+### match_lineup_positions
+- StatsBomb `positions[]`의 `from`/`to`는 `'64:10'` 문자열 → `from_minute`/`to_minute` 파싱
+- `from_period`, `to_period`, `start_reason`, `end_reason` 그대로 보존
 
-CREATE INDEX idx_fpms_player_match
-  ON analytics.fact_player_match_stats (player_id, match_id);
+### team_match_formation
+- `Starting XI` / `Tactical Shift` 이벤트의 `tactics.formation`
+- 팀별 시간순 정렬 → `to_minute` = 다음 변경의 `from_minute` (마지막 NULL)
+- 동일 분 복수 Shift(예: 브라질 80'19·80'21) → `index` 순서로 구간 분리
 
--- 커버링: 선수 대시보드
-CREATE INDEX idx_fpms_player_covering
-  ON analytics.fact_player_match_stats (player_id, match_id)
-  INCLUDE (xg, passes_completed, passes_attempted, pass_completion_rate, minutes_played);
-
--- ETL·이벤트 집계
-CREATE INDEX idx_events_match_type_player
-  ON staging.events (match_id, type, player_id);
+**실例 (한국 vs 브라질, 3869253)**:
 ```
-
-**EXPLAIN 대상 쿼리 예시**:
-```sql
--- 우리 선수 WC 누적 xG·패스율 (라인업 추천 SQL 컨텍스트)
-SELECT SUM(xg), SUM(passes_completed)::float / NULLIF(SUM(passes_attempted), 0)
-FROM analytics.fact_player_match_stats fpms
-JOIN staging.players p ON fpms.player_id = p.player_id
-WHERE fpms.team_id = 791;
-
--- 상대팀 경기별 압박 합계
-SELECT team_id, SUM(pressures), SUM(tackles)
-FROM analytics.fact_player_match_stats
-WHERE match_id = :opponent_match_id
-GROUP BY team_id;
+Korea  0' 442 → 45' 4141
+Brazil 0' 4231 → 80' 4411
 ```
 
 ---
 
-## 6. 파이프라인
+## 6. 인덱스
 
-### Phase 1 (로컬)
+```sql
+-- 팩트 (분석 쿼리)
+CREATE INDEX idx_fpms_player_match ON analytics.fact_player_match_stats (player_id, match_id);
+CREATE INDEX idx_fpms_team_match   ON analytics.fact_player_match_stats (team_id, match_id);
+-- 커버링
+CREATE INDEX idx_fpms_cover ON analytics.fact_player_match_stats (player_id, match_id)
+  INCLUDE (xg, passes_attempted, passes_completed, pass_completion_rate, minutes_played);
+
+-- ETL (이벤트 집계)
+CREATE INDEX idx_events_match_type_player ON staging.events (match_id, type, player_id);
+
+-- 포메이션 타임라인
+CREATE INDEX idx_tmf_timeline ON analytics.team_match_formation (match_id, team_id, from_minute);
+```
+
+`EXPLAIN (ANALYZE, BUFFERS)` 전후 → `docs/performance/`
+
+---
+
+## 7. 파이프라인 · AWS · AI
+
+### Phase 1
 ```
 statsbombpy → staging.* → analytics.fact_player_match_stats
+                        → analytics.team_match_formation
 ```
 
-### Phase 2+ (AWS)
-```
-StatsBomb → Lambda/EventBridge → S3(bronze) → Airflow/MWAA → RDS(staging+analytics)
-```
+### Phase 2+ AWS
+RDS(PostgreSQL+pgvector) + S3 bronze + Lambda/EC2 + IAM/VPC/SG. EC2 PG → RDS 비교 문서.
 
-**운영 (문서화)**:
-- **멱등성**: natural key UPSERT
-- **증분**: `ingestion_watermarks`로 변경분만
-- **재처리**: 경기 단위 트랜잭션, 실패 match_id만 재실행
-- **계보**: `data_source`, `ingested_at`
+### AI (Phase 5)
+```
+[질의] "브라질전 라인업"
+  ① SQL — fact + team_match_formation + staging JOIN
+  ② pgvector — embedding_documents 유사 사례
+  ③ LLM — ①② 컨텍스트로 추천 + 근거
+```
+금지: SQL 없이 LLM만 / 근거 없는 AI UI.
 
 ---
 
-## 7. AWS (목표)
-
-| 서비스 | 용도 |
-|--------|------|
-| RDS PostgreSQL + pgvector | staging + analytics + oltp |
-| S3 | bronze raw JSON |
-| Lambda / EC2 | 수집·API |
-| IAM, VPC, SG | 최소 권한·네트워크 격리 |
-
-**포트폴리오 스토리**: EC2에 PG 직접 설치(운영 체감) → RDS 마이그레이션 → `docs/aws/ec2-vs-rds.md` 비교.
-
----
-
-## 8. AI 라인업 추천 (RAG + Vector)
-
-### 왜 RAG
-라인업은 과거 유사 전술·현재 선수 스탯을 종합해야 함. LLM 단독은 환각 위험 → **SQL + RAG + LLM** 하이브리드.
-
-```
-[질의] "브라질전 라인업 추천"
-  ├─① SQL: 상대 약점 포지션, 우리 선수 매치업 우위 (fact_player_match_stats)
-  ├─② pgvector: 유사 전술 경기·대응 라인업·결과 검색
-  └─③ LLM: ①② 컨텍스트로 추천 + 근거 생성
-```
-
-### `analytics.embedding_documents`
-- `doc_type`: match_report, tactical_pattern, player_profile
-- `content` + `embedding vector(1536)` + `metadata JSONB`
-- Phase 5에서 ivfflat 인덱스
-
-### 금지
-- SQL 없이 LLM만으로 추천
-- 근거 없는 "AI 추천" UI
-
----
-
-## 9. 에이전트 지침
+## 8. 에이전트 지침
 
 ### Phase 1 우선순위
-1. `db/schema/*.sql`
+1. `db/schema/*.sql` — `db/erd.dbml` 그대로
 2. `scripts/init_db.py` + `ingest_wc2022.py`
-3. `src/aggregation/player_match_stats.py`
+3. `src/aggregation/` — fact + formation ETL (§5 규칙 준수)
 4. `docs/performance/` EXPLAIN 캡처
 
 ### 하지 말 것
-- OLTP·OLAP 한 테이블에 혼합
-- StatsBomb 외 소스 연동
-- 계약/부상/훈련 테이블 생성
-- AI를 스키마·SQL 없이 먼저 구현
+- `oltp`, `dim_*` 테이블 재도입
+- `staging.events` 94컬럼 wide table
+- 합성 선수 데이터
+- StatsBomb 외 소스
+- AI를 ETL·스키마 없이 선행
 
-### 검증
+### 검증 SQL
 ```sql
 SELECT COUNT(*) FROM staging.matches
 WHERE competition_id = 43 AND season_id = 106;  -- 64
 
+SELECT COUNT(*) FROM staging.events;             -- ~234,637
+
+SELECT COUNT(*) FROM analytics.fact_player_match_stats;  -- ~1,996
+
 SELECT COUNT(*) FROM analytics.fact_player_match_stats
-WHERE team_id = 791;  -- 한국 선수 경기별 스탯
+WHERE team_id = 791;  -- 한국
+
+SELECT * FROM analytics.team_match_formation
+WHERE match_id = 3869253 ORDER BY team_id, from_minute;
 ```
 
 ---
 
-## 10. 결정 로그
+## 9. 결정 로그
 
 | 날짜 | 결정 |
 |------|------|
-| 2026-06-14 | 시드 = 2022 WC, StatsBomb only |
-| 2026-06-14 | 우리 클럽 = South Korea (791) |
-| 2026-06-14 | 데모 = 상대 분석 + 라인업 추천만 |
-| 2026-06-14 | 계약·부상·훈련 제외 |
-| 2026-06-14 | `fact_player_match_stats` = 핵심 OLAP 팩트 |
-| 2026-06-14 | RDS + pgvector 단일 인스턴스 |
+| 2026-06-14 | 시드 = 2022 WC, StatsBomb only, 우리 팀 = Korea (791) |
+| 2026-06-14 | ERD 17→11테이블. oltp·dim_* 제거, team_match_formation 도입 |
+| 2026-06-14 | 실데이터 검증 통과 (validate_erd.py) |
+| 2026-06-14 | tackles = Duel+Tackle, passes_completed = outcome IS NULL |
+| 2026-06-14 | RDS + pgvector, SQL+RAG+LLM 하이브리드 |
 
 ---
 
 ## 참고
 
-- `explore_statsbomb.py` — 데이터 탐색
+- `explore_statsbomb.py` — 탐색
+- `db/erd.dbml` — ERD (dbdiagram.io)
+- `scripts/validate_erd.py` — ERD 실데이터 검증
 - StatsBomb: https://github.com/statsbomb/open-data
-- 2022 결승: `match_id = 3869685`
 - 한국 16강: `match_id = 3869253` (vs Brazil)
+- 2022 결승: `match_id = 3869685`
