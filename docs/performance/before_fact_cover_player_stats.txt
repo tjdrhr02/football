@@ -1,0 +1,15 @@
+# Player match stats — covering columns only (fact)
+# phase: before
+# captured: 2026-06-14T11:56:04.139187+00:00
+# notes: idx_fpms_cover: Index Only Scan when INCLUDE columns satisfy query
+# scan: Index Scan
+# index: fact_player_match_stats_pkey
+# planning_ms: 0.038
+# execution_ms: 0.057
+Index Scan using fact_player_match_stats_pkey on fact_player_match_stats f  (cost=0.28..80.54 rows=4 width=19) (actual time=0.016..0.050 rows=4 loops=1)
+  Index Cond: (player_id = 3083)
+  Buffers: shared hit=17
+Planning:
+  Buffers: shared hit=18
+Planning Time: 0.038 ms
+Execution Time: 0.057 ms

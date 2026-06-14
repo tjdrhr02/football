@@ -1,7 +1,7 @@
 """Table-by-table staging loaders (StatsBomb → PostgreSQL)."""
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Callable, Iterable
 
 import pandas as pd
 from psycopg2.extensions import connection as PGConnection
@@ -317,15 +317,21 @@ def load_events(
     season_id: int = SEASON_ID,
     match_ids: Iterable[int] | None = None,
     matches_df: pd.DataFrame | None = None,
+    on_match_loaded: Callable[[int, int, int, int], None] | None = None,
 ) -> int:
     if matches_df is None:
         matches_df = fetch_matches(competition_id, season_id)
     if match_ids is None:
         match_ids = matches_df["match_id"].astype(int).tolist()
 
+    match_ids_list = [int(mid) for mid in match_ids]
+    total_matches = len(match_ids_list)
     total = 0
-    for match_id in match_ids:
-        total += load_events_for_match(conn, int(match_id))
+    for index, match_id in enumerate(match_ids_list, start=1):
+        rows = load_events_for_match(conn, match_id)
+        total += rows
+        if on_match_loaded is not None:
+            on_match_loaded(index, total_matches, match_id, rows)
     return total
 
 

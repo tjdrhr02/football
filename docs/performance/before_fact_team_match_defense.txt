@@ -1,0 +1,24 @@
+# Korea campaign — defensive totals by match (fact)
+# phase: before
+# captured: 2026-06-14T11:56:04.138609+00:00
+# notes: idx_fpms_team_match: team_id filter across ~60 rows
+# scan: Seq Scan
+# index: —
+# planning_ms: 0.439
+# execution_ms: 0.242
+Sort  (cost=104.51..104.61 rows=39 width=20) (actual time=0.220..0.220 rows=4 loops=1)
+  Sort Key: match_id
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=80
+  ->  HashAggregate  (cost=102.70..103.48 rows=39 width=20) (actual time=0.201..0.202 rows=4 loops=1)
+        Group Key: match_id
+        Batches: 1  Memory Usage: 24kB
+        Buffers: shared hit=77
+        ->  Seq Scan on fact_player_match_stats f  (cost=0.00..101.95 rows=60 width=20) (actual time=0.040..0.182 rows=60 loops=1)
+              Filter: (team_id = 791)
+              Rows Removed by Filter: 1936
+              Buffers: shared hit=77
+Planning:
+  Buffers: shared hit=41
+Planning Time: 0.439 ms
+Execution Time: 0.242 ms

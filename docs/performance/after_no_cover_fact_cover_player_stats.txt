@@ -1,0 +1,17 @@
+# Player match stats — covering columns only (fact)
+# phase: after_no_cover
+# captured: 2026-06-14T11:56:04.328218+00:00
+# notes: idx_fpms_cover: Index Only Scan when INCLUDE columns satisfy query
+# scan: Index Scan
+# index: idx_fpms_player_match
+# planning_ms: 0.011
+# execution_ms: 0.012
+Bitmap Heap Scan on fact_player_match_stats f  (cost=4.31..17.62 rows=4 width=19) (actual time=0.008..0.009 rows=4 loops=1)
+  Recheck Cond: (player_id = 3083)
+  Heap Blocks: exact=4
+  Buffers: shared hit=4 read=2
+  ->  Bitmap Index Scan on idx_fpms_player_match  (cost=0.00..4.31 rows=4 width=0) (actual time=0.007..0.007 rows=4 loops=1)
+        Index Cond: (player_id = 3083)
+        Buffers: shared read=2
+Planning Time: 0.011 ms
+Execution Time: 0.012 ms

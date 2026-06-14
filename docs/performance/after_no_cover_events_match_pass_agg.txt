@@ -1,0 +1,23 @@
+# ETL: per-player pass/shot counts for one match (events)
+# phase: after_no_cover
+# captured: 2026-06-14T11:56:04.325078+00:00
+# notes: Primary demo: Seq Scan → Index Scan on idx_events_match_type_player
+# scan: Index Scan
+# index: idx_events_match_type_player
+# planning_ms: 0.105
+# execution_ms: 1.067
+HashAggregate  (cost=9363.06..9369.73 rows=667 width=28) (actual time=1.040..1.044 rows=32 loops=1)
+  Group Key: player_id
+  Batches: 1  Memory Usage: 49kB
+  Buffers: shared hit=276 read=8
+  ->  Bitmap Heap Scan on events e  (cost=61.06..9293.99 rows=3947 width=21) (actual time=0.117..0.451 rows=4031 loops=1)
+        Recheck Cond: ((match_id = 3869253) AND (player_id IS NOT NULL))
+        Heap Blocks: exact=276
+        Buffers: shared hit=276 read=8
+        ->  Bitmap Index Scan on idx_events_match_type_player  (cost=0.00..60.07 rows=3947 width=0) (actual time=0.100..0.100 rows=4031 loops=1)
+              Index Cond: ((match_id = 3869253) AND (player_id IS NOT NULL))
+              Buffers: shared read=8
+Planning:
+  Buffers: shared hit=33 read=1
+Planning Time: 0.105 ms
+Execution Time: 1.067 ms

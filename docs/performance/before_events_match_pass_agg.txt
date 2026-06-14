@@ -1,0 +1,20 @@
+# ETL: per-player pass/shot counts for one match (events)
+# phase: before
+# captured: 2026-06-14T11:56:04.136675+00:00
+# notes: Primary demo: Seq Scan → Index Scan on idx_events_match_type_player
+# scan: Seq Scan
+# index: —
+# planning_ms: 0.901
+# execution_ms: 130.5
+HashAggregate  (cost=19349.04..19355.71 rows=667 width=28) (actual time=130.430..130.437 rows=32 loops=1)
+  Group Key: player_id
+  Batches: 1  Memory Usage: 49kB
+  Buffers: shared hit=14413 read=1934
+  ->  Seq Scan on events e  (cost=0.00..19279.96 rows=3947 width=21) (actual time=101.334..129.684 rows=4031 loops=1)
+        Filter: ((player_id IS NOT NULL) AND (match_id = 3869253))
+        Rows Removed by Filter: 230606
+        Buffers: shared hit=14413 read=1934
+Planning:
+  Buffers: shared hit=83 dirtied=1
+Planning Time: 0.901 ms
+Execution Time: 130.500 ms

@@ -1,0 +1,20 @@
+# Korea formation timeline (team_match_formation)
+# phase: after_no_cover
+# captured: 2026-06-14T11:56:04.329365+00:00
+# notes: idx_tmf_timeline: match_id + team_id + from_minute
+# scan: Seq Scan
+# index: —
+# planning_ms: 0.06
+# execution_ms: 0.015
+Sort  (cost=7.28..7.28 rows=1 width=8) (actual time=0.013..0.013 rows=2 loops=1)
+  Sort Key: from_minute
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=4
+  ->  Seq Scan on team_match_formation  (cost=0.00..7.27 rows=1 width=8) (actual time=0.011..0.012 rows=2 loops=1)
+        Filter: ((match_id = 3869253) AND (team_id = 791))
+        Rows Removed by Filter: 216
+        Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=21 read=1
+Planning Time: 0.060 ms
+Execution Time: 0.015 ms

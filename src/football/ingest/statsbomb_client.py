@@ -1,4 +1,4 @@
-"""Fetch StatsBomb Open Data for WC2022 ingest."""
+"""Fetch StatsBomb Open Data for ingest."""
 from __future__ import annotations
 
 import pandas as pd
@@ -7,15 +7,19 @@ from statsbombpy import sb
 from football.config import COMPETITION_ID, SEASON_ID
 
 
-def fetch_wc_competition_row(
+def fetch_competition_row(
     competition_id: int = COMPETITION_ID,
     season_id: int = SEASON_ID,
 ) -> pd.Series:
     comps = sb.competitions()
-    wc = comps[(comps["competition_id"] == competition_id) & (comps["season_id"] == season_id)]
-    if wc.empty:
+    row = comps[(comps["competition_id"] == competition_id) & (comps["season_id"] == season_id)]
+    if row.empty:
         raise ValueError(f"competition_id={competition_id}, season_id={season_id} not found")
-    return wc.iloc[0]
+    return row.iloc[0]
+
+
+# Backward-compatible alias
+fetch_wc_competition_row = fetch_competition_row
 
 
 def fetch_matches(
