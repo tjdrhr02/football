@@ -69,10 +69,12 @@ make pipeline   # WC2022 full run
 
 ## Phase roadmap
 
-| Phase | Focus |
-|-------|-------|
-| 1 (now) | Pipeline + indexes + EXPLAIN |
-| 2+ | S3, Airflow, RDS |
-| 5 | SQL + RAG + LLM lineup recommendation |
+| Day | Focus |
+|-----|-------|
+| 1~2 ✅ | Pipeline + indexes + EXPLAIN + 8 WC2022 analysis queries (Korea-focused) |
+| 3 | AWS RDS PostgreSQL (pgvector enabled) + local→RDS migration |
+| 4 | RAG data prep: embed WC match reports + tactical patterns + Korea player profiles |
+| 5 | Hybrid lineup recommender: "Korea vs Brazil optimal lineup" (SQL→pgvector→LLM) |
+| 6~7 | Architecture diagram + README as "World Cup Tactical Analysis System" portfolio |
 
 Data source: [StatsBomb Open Data](https://github.com/statsbomb/open-data) only.
