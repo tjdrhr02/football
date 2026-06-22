@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.3.0",
     "psycopg2-binary>=2.9.0",
     "python-dotenv>=1.0.0",
+    "sentence-transformers>=2.7.0",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +26,8 @@ football-ingest = "football.cli.ingest:main"
 football-aggregate = "football.cli.aggregate:main"
 football-init-db = "football.cli.init_db:main"
 football-analysis = "football.cli.analysis:main"
+football-embed = "football.cli.embed:main"
+football-search = "football.cli.search:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

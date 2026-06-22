@@ -20,3 +20,8 @@ CREATE INDEX IF NOT EXISTS idx_events_match_type_player
 -- analytics.team_match_formation — timeline lookups
 CREATE INDEX IF NOT EXISTS idx_tmf_timeline
     ON analytics.team_match_formation (match_id, team_id, from_minute);
+
+-- analytics.embedding_documents — RAG cosine similarity (pgvector HNSW)
+-- Build after rows are loaded + embedded (football-embed). 384-dim = bge-small-en-v1.5.
+CREATE INDEX IF NOT EXISTS idx_embedding_hnsw
+    ON analytics.embedding_documents USING hnsw (embedding vector_cosine_ops);

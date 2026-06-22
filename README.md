@@ -40,6 +40,8 @@ WHERE m.competition_id = 43 AND m.season_id = 106;
 | `football-aggregate` | Analytics ETL only |
 | `football-init-db` | Apply `db/schema/*.sql` |
 | `football-analysis` | Exploratory SQL → `docs/snapshots/` |
+| `football-embed` | Build RAG docs (SQL→NL) + local embeddings → pgvector |
+| `football-search` | Cosine similarity search (`--query`, `--doc-type`, `--top-k`) |
 
 Legacy wrappers: `run_pipeline.py`, `scripts/ingest.py`, etc.
 
@@ -49,7 +51,7 @@ Legacy wrappers: `run_pipeline.py`, `scripts/ingest.py`, etc.
 infra/terraform/    AWS RDS (free-tier, pgvector) as code — apply/destroy
 db/schema/          DDL (staging + analytics + indexes)
 sql/aggregate/      ETL SQL (fact, formation) — in src/football/sql/
-src/football/       Package — ingest, aggregation, pipeline, cli
+src/football/       Package — ingest, aggregation, pipeline, rag, cli
 scripts/            Dev tools (validate_erd, explain benchmark)
 tests/              Unit tests (transformers, sql loader)
 docs/performance/   EXPLAIN ANALYZE captures
@@ -76,7 +78,7 @@ make pipeline   # WC2022 full run
 |-----|-------|
 | 1~2 ✅ | Pipeline + indexes + EXPLAIN + 8 WC2022 analysis queries (Korea-focused) |
 | 3 ✅ | AWS RDS PostgreSQL 16 (pgvector 0.8.0) via Terraform + local→RDS migration |
-| 4 | RAG data prep: embed WC match reports + tactical patterns + Korea player profiles |
+| 4 ✅ | RAG data prep: 56 docs (match reports + tactical patterns + Korea/Brazil player profiles), local bge-small-en-v1.5 (384-dim) embeddings, pgvector HNSW search |
 | 5 | Hybrid lineup recommender: "Korea vs Brazil optimal lineup" (SQL→pgvector→LLM) |
 | 6~7 | Architecture diagram + README as "World Cup Tactical Analysis System" portfolio |
 

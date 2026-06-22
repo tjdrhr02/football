@@ -33,6 +33,16 @@ DB_CONFIG: dict[str, object] = {
 COMPETITION_ID = 43  # FIFA World Cup
 SEASON_ID = 106  # 2022
 KOREA_TEAM_ID = 791
+BRAZIL_TEAM_ID = 781  # Day 5 matchup opponent (Round of 16, match_id=3869253)
+
+# RAG embeddings (Day 4) — local sentence-transformers (zero cost, offline, no API key)
+EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
+EMBED_DIM = int(os.getenv("EMBED_DIM", "384"))
+# bge-* retrieval: prepend this instruction to QUERIES only (not documents)
+EMBED_QUERY_INSTRUCTION = os.getenv(
+    "EMBED_QUERY_INSTRUCTION",
+    "Represent this sentence for searching relevant passages: ",
+)
 
 DEFAULT_DB = str(DB_CONFIG["dbname"])
 

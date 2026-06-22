@@ -58,7 +58,7 @@ CREATE TABLE analytics.embedding_documents (
     doc_type   VARCHAR NOT NULL,
     ref_id     INTEGER NOT NULL,
     content    TEXT NOT NULL,
-    embedding  vector(1536),
+    embedding  vector(384),
     metadata   JSONB,
     created_at TIMESTAMPTZ
 );
