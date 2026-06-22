@@ -16,6 +16,8 @@ football-pipeline --counts-only
 
 WC2022 defaults (`competition_id=43`, `season_id=106`) live in `src/football/config.py`. Change CLI flags to load another StatsBomb Open Data competition.
 
+**Cloud (RDS):** the DB target is env-driven — point `.env`'s `PGHOST`/`PGUSER`/`PGPASSWORD` at the RDS endpoint and every `football-*` CLI runs against AWS unchanged. Provision/tear down the instance via `infra/terraform/` (see its README).
+
 ## Compression proof (psql)
 
 ```sql
@@ -44,6 +46,7 @@ Legacy wrappers: `run_pipeline.py`, `scripts/ingest.py`, etc.
 ## Repository layout
 
 ```
+infra/terraform/    AWS RDS (free-tier, pgvector) as code — apply/destroy
 db/schema/          DDL (staging + analytics + indexes)
 sql/aggregate/      ETL SQL (fact, formation) — in src/football/sql/
 src/football/       Package — ingest, aggregation, pipeline, cli
@@ -72,7 +75,7 @@ make pipeline   # WC2022 full run
 | Day | Focus |
 |-----|-------|
 | 1~2 ✅ | Pipeline + indexes + EXPLAIN + 8 WC2022 analysis queries (Korea-focused) |
-| 3 | AWS RDS PostgreSQL (pgvector enabled) + local→RDS migration |
+| 3 ✅ | AWS RDS PostgreSQL 16 (pgvector 0.8.0) via Terraform + local→RDS migration |
 | 4 | RAG data prep: embed WC match reports + tactical patterns + Korea player profiles |
 | 5 | Hybrid lineup recommender: "Korea vs Brazil optimal lineup" (SQL→pgvector→LLM) |
 | 6~7 | Architecture diagram + README as "World Cup Tactical Analysis System" portfolio |

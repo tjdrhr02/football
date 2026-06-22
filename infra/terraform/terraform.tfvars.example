@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored (secrets).
+# my_ip is auto-filled by the apply command in the README (curl ifconfig.me).
+
+db_password = "CHANGE_ME_strong_password"
+my_ip       = "1.2.3.4/32"
+# region        = "ap-northeast-2"
+# engine_version = "16.4"

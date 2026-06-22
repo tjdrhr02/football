@@ -6,15 +6,15 @@
     },
     {
       "item": "events",
-      "n": 234637
+      "n": 237802
     },
     {
       "item": "fact",
-      "n": 1996
+      "n": 2024
     },
     {
       "item": "formation",
-      "n": 218
+      "n": 222
     }
   ],
   "goals_by_stage": [
@@ -160,22 +160,22 @@
   "pass_under_pressure": [
     {
       "pressure_state": "no_pressure",
-      "pass_attempts": 60607,
-      "passes_completed": 50744,
-      "completion_rate": 0.8373
+      "pass_attempts": 61293,
+      "passes_completed": 51252,
+      "completion_rate": 0.8362
     },
     {
       "pressure_state": "under_pressure",
-      "pass_attempts": 7908,
-      "passes_completed": 5602,
-      "completion_rate": 0.7084
+      "pass_attempts": 8112,
+      "passes_completed": 5743,
+      "completion_rate": 0.708
     }
   ],
   "pass_pressure_drop": [
     {
-      "rate_no_pressure": 0.8373,
-      "rate_under_pressure": 0.7084,
-      "drop_pp": 12.89
+      "rate_no_pressure": 0.8362,
+      "rate_under_pressure": 0.708,
+      "drop_pp": 12.82
     }
   ],
   "korea_opponent_defense": [

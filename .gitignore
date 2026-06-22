@@ -16,3 +16,15 @@ build/
 .vscode/
 *.swp
 .DS_Store
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+# .terraform.lock.hcl is committed on purpose (reproducible provider versions)
+
+# DB dumps
+*.dump
