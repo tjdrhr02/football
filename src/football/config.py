@@ -44,6 +44,10 @@ EMBED_QUERY_INSTRUCTION = os.getenv(
     "Represent this sentence for searching relevant passages: ",
 )
 
+# LLM generation (Day 5) — Google Gemini, free tier
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
 DEFAULT_DB = str(DB_CONFIG["dbname"])
 
 

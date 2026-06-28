@@ -13,6 +13,7 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "python-dotenv>=1.0.0",
     "sentence-transformers>=2.7.0",
+    "google-genai>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,7 @@ football-init-db = "football.cli.init_db:main"
 football-analysis = "football.cli.analysis:main"
 football-embed = "football.cli.embed:main"
 football-search = "football.cli.search:main"
+football-recommend = "football.cli.recommend:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

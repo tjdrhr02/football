@@ -42,6 +42,7 @@ WHERE m.competition_id = 43 AND m.season_id = 106;
 | `football-analysis` | Exploratory SQL → `docs/snapshots/` |
 | `football-embed` | Build RAG docs (SQL→NL) + local embeddings → pgvector |
 | `football-search` | Cosine similarity search (`--query`, `--doc-type`, `--top-k`) |
+| `football-recommend` | Hybrid lineup rec: SQL → pgvector → Gemini (`--question`, `--dry-run`) |
 
 Legacy wrappers: `run_pipeline.py`, `scripts/ingest.py`, etc.
 
@@ -79,7 +80,7 @@ make pipeline   # WC2022 full run
 | 1~2 ✅ | Pipeline + indexes + EXPLAIN + 8 WC2022 analysis queries (Korea-focused) |
 | 3 ✅ | AWS RDS PostgreSQL 16 (pgvector 0.8.0) via Terraform + local→RDS migration |
 | 4 ✅ | RAG data prep: 56 docs (match reports + tactical patterns + Korea/Brazil player profiles), local bge-small-en-v1.5 (384-dim) embeddings, pgvector HNSW search |
-| 5 | Hybrid lineup recommender: "Korea vs Brazil optimal lineup" (SQL→pgvector→LLM) |
+| 5 ✅ | Hybrid lineup recommender: "Korea vs Brazil optimal lineup" — SQL facts → pgvector → Gemini (free tier), sourced rationale |
 | 6~7 | Architecture diagram + README as "World Cup Tactical Analysis System" portfolio |
 
 Data source: [StatsBomb Open Data](https://github.com/statsbomb/open-data) only.
